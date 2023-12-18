@@ -182,15 +182,9 @@ def display_formatted_output(prompt, responses, dark_theme=True):
     display(HTML(full_html))
 
 
-
 class OpenAIClient:
     """
     A client for interacting with OpenAI's GPT models.
-
-    This class provides an encapsulated way to handle OpenAI API interactions,
-    particularly for obtaining GPT model completions. It handles API key loading,
-    client initialization, and provides a method to get model completions with
-    automatic retries on failure.
 
     Attributes
     ----------
@@ -201,23 +195,27 @@ class OpenAIClient:
 
     Methods
     -------
-    get_gpt_model_completions(model, prompt, inf_params, max_retries=3, retry_delay=5)
+    get_gpt_model_completions(model, prompt, inf_params, labels, max_retries, retry_delay)
         Attempts to get model completions with retries on failure.
     """
 
-    def __init__(self, api_key_file_path):
+    def __init__(self, api_key_file_path: str, save_path: str, timeout: int = 10):
         self.api_key = self._read_api_key(api_key_file_path)
-        openai.api_key = self.api_key
-        self.client = openai.OpenAI(api_key=self.api_key, timeout=10)
+        self.save_path = save_path
+        self.client = openai.OpenAI(api_key=self.api_key, timeout=timeout)
 
-    def _read_api_key(self, file_path):
+    def _read_api_key(self, file_path: str) -> str:
         """
         Reads the OpenAI API key from a specified file.
         """
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"API key file not found at {file_path}")
         with open(file_path, 'r') as file:
             return file.read().strip()
 
-    def get_gpt_model_completions(self, model, prompt, inf_params, max_retries=3, retry_delay=5):
+    def get_gpt_model_completions(self, model: str, prompt: str, 
+                                  inf_params: dict, labels: dict = None,
+                                  max_retries: int = 3, retry_delay: int = 5) -> list:
         """
         Attempts to get model completions with retries on failure.
 
@@ -229,6 +227,8 @@ class OpenAIClient:
             The prompt to send to the model.
         inf_params : dict
             Additional inference parameters for the model.
+        labels: dict, optional
+            Any labels that apply to the generated examples
         max_retries : int, optional
             Maximum number of retries on failure (default is 3).
         retry_delay : int, optional
@@ -244,14 +244,28 @@ class OpenAIClient:
         Exception
             If the maximum number of retries is reached.
         """
+        if labels is None:
+            labels = {}
+
         for attempt in range(max_retries):
             try:
                 chat_completion = self.client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
                     **inf_params)
-                return [choice.message.content for choice in chat_completion.choices]
+                responses = [choice.message.content for choice in chat_completion.choices]
+                self._save_responses(prompt, responses, labels, model, inf_params)
+                return responses
             except Exception as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Maximum retries reached.") from e
                 print(f"Exception: {e}\nRetrying... (Attempt {attempt + 1} of {max_retries})")
                 time.sleep(retry_delay)
-        raise Exception("Maximum retries reached.")
+
+    def _save_responses(self, prompt: str, responses: list, labels: dict, 
+                        model_name: str, model_params: dict):
+        """
+        Saves the responses using the save_prompt_responses function.
+        """
+        save_prompt_responses(prompt, responses, labels, model_name, 
+                              self.save_path, model_params)
