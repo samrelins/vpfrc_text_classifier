@@ -125,7 +125,6 @@ def generate_prompt(examples_df, scenarios_df, k=1, additional_instruction=""):
     return prompt, scenario
 
 
-
 def display_formatted_output(prompt, responses, dark_theme=True):
     """
     Displays a prompt and its corresponding responses in a formatted HTML layout.
@@ -169,10 +168,11 @@ def display_formatted_output(prompt, responses, dark_theme=True):
     ]
 
     for i, response in enumerate(responses, start=1):
+        formatted_response = response.replace("\n", "<br>")
         response_block = f"""
             <h2 style="{response_header_style}">Response {i}:</h2>
             <div style="{response_style}">
-                {response}
+                {formatted_response}
             </div>
         """
         html_elements.append(response_block)
@@ -180,7 +180,6 @@ def display_formatted_output(prompt, responses, dark_theme=True):
     html_elements.append("</div>")
     full_html = ''.join(html_elements)
     display(HTML(full_html))
-
 
 class OpenAIClient:
     """
