@@ -181,6 +181,7 @@ def display_formatted_output(prompt, responses, dark_theme=True):
     full_html = ''.join(html_elements)
     display(HTML(full_html))
 
+
 class OpenAIClient:
     """
     A client for interacting with OpenAI's GPT models.
@@ -212,11 +213,38 @@ class OpenAIClient:
         with open(file_path, 'r') as file:
             return file.read().strip()
 
-    def get_gpt_model_completions(self, model: str, prompt: str, 
+    def _get_chat_completions(self, model: str, messages: list, inf_params: dict,  
+                              max_retries: int, retry_delay: int) -> list:
+        """
+        Attempts to get model completions with retries on failure.
+        """
+        for attempt in range(max_retries):
+            try:
+                chat_completion = self.client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    **inf_params)
+                responses = [choice.message.content for choice in chat_completion.choices]
+                return responses
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise Exception("Maximum retries reached.") from e
+                print(f"Exception: {e}\nRetrying... (Attempt {attempt + 1} of {max_retries})")
+                time.sleep(retry_delay)
+
+    def _save_responses(self, prompt: str, responses: list, labels: dict,
+                        model_name: str, model_params: dict):
+        """
+        Saves the responses using the save_prompt_responses function.
+        """
+        save_prompt_responses(prompt, responses, labels, model_name,
+                              self.save_path, model_params)
+
+    def get_simple_model_completions(self, model: str, prompt: str,
                                   inf_params: dict, labels: dict = None,
                                   max_retries: int = 3, retry_delay: int = 5) -> list:
         """
-        Attempts to get model completions with retries on failure.
+        Generates simple response(s) to single prompt.
 
         Parameters
         ----------
@@ -246,25 +274,68 @@ class OpenAIClient:
         if labels is None:
             labels = {}
 
-        for attempt in range(max_retries):
-            try:
-                chat_completion = self.client.chat.completions.create(
-                    model=model,
-                    messages=[{"role": "user", "content": prompt}],
-                    **inf_params)
-                responses = [choice.message.content for choice in chat_completion.choices]
-                self._save_responses(prompt, responses, labels, model, inf_params)
-                return responses
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    raise Exception("Maximum retries reached.") from e
-                print(f"Exception: {e}\nRetrying... (Attempt {attempt + 1} of {max_retries})")
-                time.sleep(retry_delay)
+        messages = [{"role": "user", "content": prompt}]
+        responses = self._get_chat_completions(model, messages, inf_params,
+                                               max_retries, retry_delay)
+        self._save_responses(prompt, responses, labels, model, inf_params)
+        return responses
 
-    def _save_responses(self, prompt: str, responses: list, labels: dict, 
-                        model_name: str, model_params: dict):
+
+    def get_sequential_model_completions(self, model: str, initial_prompt: str,
+                                         follow_up_prompt: str, inf_params: dict,
+                                         labels: dict = None, n: int = 3,
+                                         max_retries: int = 3, retry_delay: int = 5) -> list:
         """
-        Saves the responses using the save_prompt_responses function.
+        Gets sequential responses to initial prompt and repeated follow up prompts
+        
+        Intended to prompt model to produce multiple responses to the same request
+        that differ from one another.
+
+        Parameters
+        ----------
+        model : str
+            The model identifier to use for completions.
+        initial_prompt : str
+            The initial prompt to send to the model.
+        follow_up_prompt : str
+            The follow-up prompt to send for subsequent responses.
+        inf_params : dict
+            Additional inference parameters for the model.
+        labels: dict, optional
+            Any labels that apply to the generated examples.
+        sequence_length : int, optional
+            Number of sequential responses to generate (default is 2).
+        max_retries : int, optional
+            Maximum number of retries on failure (default is 3).
+        retry_delay : int, optional
+            Delay in seconds between retries (default is 5).
+
+        Returns
+        -------
+        list
+            A list of sequential completion strings returned by the model.
+
+        Raises
+        ------
+        Exception
+            If the maximum number of retries is reached.
         """
-        save_prompt_responses(prompt, responses, labels, model_name, 
-                              self.save_path, model_params)
+        if labels is None:
+            labels = {}
+        if "n" in inf_params.keys():
+            inf_params["n"] = 1
+            print("Warning: Setting n to 1 - multiple responses not supported by sequential completions")
+
+        messages = [{"role": "user", "content": initial_prompt}]
+        responses = []
+        for i in range(n):
+            response = self._get_chat_completions(model, messages, inf_params,   
+                                                  max_retries, retry_delay)[0]
+            responses.append(response)
+            response_message = {"role": "assistant", "content": response}
+            follow_up_message = {"role": "user", "content": follow_up_prompt}
+            messages += [response_message, follow_up_message]
+
+        prompt = initial_prompt + f"\n\n[SEQUENTIAL PROMPT: {follow_up_prompt}]"  
+        self._save_responses(prompt, responses, labels, model, inf_params)
+        return responses
