@@ -183,20 +183,35 @@ def display_formatted_output(prompt, responses, dark_theme=True):
 
 
 class OpenAIClient:
+    class OpenAIClient:
     """
-    A client for interacting with OpenAI's GPT models.
+    A client for interacting with OpenAI's GPT models. Provides functionality
+    to read API keys, handle model completions with retries, and save responses.
 
     Attributes
     ----------
     api_key : str
         The API key used for OpenAI API requests.
+    save_path : str
+        Path where the responses are to be saved.
     client : openai.OpenAI
         The OpenAI client instance.
+    timeout : int, optional
+        Timeout for the OpenAI API requests in seconds (default is 10).
 
     Methods
     -------
-    get_gpt_model_completions(model, prompt, inf_params, labels, max_retries, retry_delay)
-        Attempts to get model completions with retries on failure.
+    get_simple_model_completions(model: str, prompt: str, inf_params: dict, labels: dict = None, max_retries: int = 3, retry_delay: int = 5) -> list
+        Generates simple response(s) to a single prompt.
+    get_sequential_model_completions(model: str, initial_prompt: str, follow_up_prompt: str, inf_params: dict, labels: dict = None, n: int = 3, max_retries: int = 3, retry_delay: int = 5) -> list
+        Gets sequential responses to an initial prompt and repeated follow-up prompts.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the API key file is not found at the specified path.
+    Exception
+        If the maximum number of retries for model completions is reached.
     """
 
     def __init__(self, api_key_file_path: str, save_path: str, timeout: int = 10):
@@ -286,10 +301,13 @@ class OpenAIClient:
                                          labels: dict = None, n: int = 3,
                                          max_retries: int = 3, retry_delay: int = 5) -> list:
         """
-        Gets sequential responses to initial prompt and repeated follow up prompts
+        Gets response to initial prompt plus n sequential follow up prompts.
         
-        Intended to prompt model to produce multiple responses to the same request
-        that differ from one another.
+        Follows the sequence [initial prompt e.g produce a text...] -> [model 
+        response] -> [follow up prompt e.g. try again] -> [model response] etc. 
+        n times. Intended to have model retry it's response given the context 
+        of previous responses. The follow up prompt is persistent and should 
+        request that the model make another attempt
 
         Parameters
         ----------
@@ -303,8 +321,8 @@ class OpenAIClient:
             Additional inference parameters for the model.
         labels: dict, optional
             Any labels that apply to the generated examples.
-        sequence_length : int, optional
-            Number of sequential responses to generate (default is 2).
+        n : int, optional
+            Number of sequential responses to generate (default is 3).
         max_retries : int, optional
             Maximum number of retries on failure (default is 3).
         retry_delay : int, optional
@@ -323,8 +341,7 @@ class OpenAIClient:
         if labels is None:
             labels = {}
         if "n" in inf_params.keys():
-            inf_params["n"] = 1
-            print("Warning: Setting n to 1 - multiple responses not supported by sequential completions")
+            raise ValueError("n is not a valid model parameter for sequential prompting - use the 'n' argument instead")
 
         messages = [{"role": "user", "content": initial_prompt}]
         responses = []
