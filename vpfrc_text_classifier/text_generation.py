@@ -183,7 +183,6 @@ def display_formatted_output(prompt, responses, dark_theme=True):
 
 
 class OpenAIClient:
-    class OpenAIClient:
     """
     A client for interacting with OpenAI's GPT models. Provides functionality
     to read API keys, handle model completions with retries, and save responses.
