@@ -197,7 +197,7 @@ class OpenAIClient:
         Saves the responses using the save_prompt_responses function.
         """
         save_prompt_responses(prompt, k, responses, labels, model_name,
-                              self.save_path, model_params)
+                              model_params, self.save_path)
 
     def get_simple_model_completions(self, model: str, prompt: str, k: int,
                                   inf_params: dict, labels: dict = None,
