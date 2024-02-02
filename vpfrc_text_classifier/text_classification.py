@@ -240,6 +240,7 @@ def calculate_loss_and_prediction(df, classifier):
     ce_losses = calc_cross_entropy_loss(probs, df.label)
 
     # Add probabilities and losses to the DataFrame
+    df = df.copy()
     df["prob"] = probs
     df["loss"] = ce_losses
 
