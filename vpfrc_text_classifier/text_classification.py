@@ -4,7 +4,10 @@ from google.colab import drive
 import numpy as np
 import os
 import pandas as pd
+from sklearn.metrics import (accuracy_score, f1_score, precision_score, 
+                             recall_score, roc_auc_score)
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import Binarizer
 import torch
 from torch.nn import functional as F
 from transformers import (AutoModelForSequenceClassification, AutoTokenizer,
@@ -245,3 +248,62 @@ def calculate_loss_and_prediction(df, classifier):
     df["loss"] = ce_losses
 
     return df
+
+
+def calculate_classification_metrics(data):
+    """
+    Calculates classification metrics for binary classification tasks.
+
+    Parameters
+    ----------
+    data : pd.DataFrame or dict
+        If a DataFrame, it should contain 'label' (true labels) and 'prob' 
+        (predicted probabilities) columns.
+        If a dictionary, keys represent dataset names, and values are DataFrames 
+        with 'label' and 'prob' columns.
+
+    Returns
+    -------
+    pd.DataFrame
+        A DataFrame containing classification metrics for each dataset or a 
+        single dataset.
+    """
+    def calculate_metrics_for_df(df):
+        df = df.copy()
+        # Ensure the 'prob' column values are between 0 and 1
+        df['prob'] = df['prob'].clip(0, 1)
+
+        # Binarize the probabilities to get binary predictions
+        binarizer = Binarizer(threshold=0.5)
+        y_pred = binarizer.fit_transform(df[['prob']]).flatten()
+
+        # Extract true labels
+        y_true = df['label'].values
+
+        # Calculate metrics
+        accuracy = accuracy_score(y_true, y_pred)
+        f1 = f1_score(y_true, y_pred)
+        precision = precision_score(y_true, y_pred)
+        recall = recall_score(y_true, y_pred)
+        roc_auc = roc_auc_score(y_true, df['prob'])
+
+        return [accuracy, f1, precision, recall, roc_auc]
+
+    metrics_list = []
+    indices = []
+
+    if isinstance(data, dict):
+        # Calculate metrics for each DataFrame in the dictionary
+        for key, df in data.items():
+            metrics = calculate_metrics_for_df(df)
+            metrics_list.append(metrics)
+            indices.append(key)
+    else:
+        # Single DataFrame, calculate metrics
+        metrics = calculate_metrics_for_df(data)
+        metrics_list.append(metrics)
+        indices = [0]  # Default index for a single DataFrame
+
+    metrics_df = pd.DataFrame(metrics_list, columns=['accuracy', 'F1', 'precision', 'recall', 'roc-auc'], index=indices)
+
+    return metrics_df
