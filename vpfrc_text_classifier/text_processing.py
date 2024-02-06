@@ -85,6 +85,40 @@ def split_text(df, text_col, max_word_length):
     return pd.DataFrame(new_rows).reset_index(drop=True)
 
 
+def remove_statements_containing(text, phrase):
+    """
+    Removes statements containing a specified phrase from a given text.
+
+    Parameters
+    ----------
+    text : str
+        The input text from which statements containing the phrase will be removed.
+    phrase : str
+        The phrase to be removed from the text.
+
+    Returns
+    -------
+    str
+        A new string with statements containing the specified phrase removed.
+    """
+    # Escape the input phrase for regex matching
+    escaped_phrase = re.escape(phrase)
+
+    # Define a regex pattern to match and remove statements containing the phrase
+    pattern = r'([,.\-;]\s*[^,.\-;]*?\b' + escaped_phrase + r'\b[^,.\-;]*)(?=[,.\-;])'
+
+    # Use regex to remove statements containing the phrase
+    cleaned_text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
+    # Strip leading and trailing spaces
+    cleaned_text = cleaned_text.strip()
+
+    # Normalize spaces around punctuation
+    cleaned_text = re.sub(r'\s*([,.\-;])\s*', r'\1 ', cleaned_text)
+
+    return cleaned_text
+
+
 def expand_labels(df):
     """
     Expands a DataFrame by converting a column of string-formatted dictionaries 
