@@ -66,20 +66,29 @@ def split_text(df, text_col, max_word_length):
         while start < len(words):
             end = min(start + max_word_length, len(words))
             chunk = ' '.join(words[start:end])
-            # Try to find a sentence end within the chunk
             boundary = max(chunk.rfind('.'), chunk.rfind('\n'), chunk.rfind(','),
                            chunk.rfind(';'), chunk.rfind(':'))
-            if boundary != -1:
-                end = start + len(chunk[:boundary].split())
-            yield ' '.join(words[start:end])
-            start = end
+            if boundary != -1 and chunk[boundary+1:].strip():  
+                end = start + len(chunk[:boundary+1].split())
+            else:
+                boundary = len(' '.join(words[start:end]))  
+                if end < len(words):  
+                    next_chunk_start = end
+                    next_chunk_end = min(end + max_word_length, len(words))
+                    next_chunk = ' '.join(words[next_chunk_start:next_chunk_end])
+                    next_boundary = next_chunk.find(' ')  
+                    if next_boundary != -1:
+                        end = next_chunk_start + len(next_chunk[:next_boundary].split())
+            yield ' '.join(words[start:end]).strip()
+            start = end  
 
     new_rows = []
-    for _, row in df.iterrows():
+    for index, row in df.iterrows():
         text_chunks = list(split_text(row[text_col]))
         for chunk in text_chunks:
             new_row = row.copy()
             new_row[text_col] = chunk
+            new_row["source_idx"] = index
             new_rows.append(new_row)
 
     return pd.DataFrame(new_rows).reset_index(drop=True)
