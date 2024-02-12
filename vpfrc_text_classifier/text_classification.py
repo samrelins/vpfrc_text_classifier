@@ -205,7 +205,7 @@ def load_classifier(model_path, model_name="distilbert-base-uncased"):
     return classifier
 
 
-def calculate_loss_and_prediction(df, classifier):
+def calculate_loss_and_prediction(df, classifier, col_suffix=None):
     """
     Calculates the cross-entropy loss and predictions for a given dataframe using a sentiment analysis classifier.
 
@@ -244,13 +244,17 @@ def calculate_loss_and_prediction(df, classifier):
 
     # Add probabilities and losses to the DataFrame
     df = df.copy()
-    df["prob"] = probs
-    df["loss"] = ce_losses
+    if col_suffix:
+        df[f"prob_{col_suffix}"] = probs
+        df[f"loss_{col_suffix}"] = ce_losses
+    else:
+        df[f"prob"] = probs
+        df[f"loss"] = ce_losses
 
     return df
 
 
-def calculate_classification_metrics(data):
+def calculate_classification_metrics(data, prob_col="prob_col"):
     """
     Calculates classification metrics for binary classification tasks.
 
@@ -268,14 +272,14 @@ def calculate_classification_metrics(data):
         A DataFrame containing classification metrics for each dataset or a 
         single dataset.
     """
-    def calculate_metrics_for_df(df):
+    def calculate_metrics_for_df(df, prob_col):
         df = df.copy()
         # Ensure the 'prob' column values are between 0 and 1
-        df['prob'] = df['prob'].clip(0, 1)
+        probs = df[prob_col].clip(0, 1)
 
         # Binarize the probabilities to get binary predictions
         binarizer = Binarizer(threshold=0.5)
-        y_pred = binarizer.fit_transform(df[['prob']]).flatten()
+        y_pred = binarizer.fit_transform(probs).flatten()
 
         # Extract true labels
         y_true = df['label'].values
@@ -285,7 +289,7 @@ def calculate_classification_metrics(data):
         f1 = f1_score(y_true, y_pred)
         precision = precision_score(y_true, y_pred)
         recall = recall_score(y_true, y_pred)
-        roc_auc = roc_auc_score(y_true, df['prob'])
+        roc_auc = roc_auc_score(y_true, probs)
 
         return [accuracy, f1, precision, recall, roc_auc]
 
@@ -295,12 +299,12 @@ def calculate_classification_metrics(data):
     if isinstance(data, dict):
         # Calculate metrics for each DataFrame in the dictionary
         for key, df in data.items():
-            metrics = calculate_metrics_for_df(df)
+            metrics = calculate_metrics_for_df(df, prob_col)
             metrics_list.append(metrics)
             indices.append(key)
     else:
         # Single DataFrame, calculate metrics
-        metrics = calculate_metrics_for_df(data)
+        metrics = calculate_metrics_for_df(data, prob_col)
         metrics_list.append(metrics)
         indices = [0]  # Default index for a single DataFrame
 
