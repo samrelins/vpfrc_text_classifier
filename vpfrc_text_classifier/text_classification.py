@@ -254,7 +254,7 @@ def calculate_loss_and_prediction(df, classifier, col_suffix=None):
     return df
 
 
-def calculate_classification_metrics(data, prob_col="prob_col"):
+def calculate_classification_metrics(data, prob_col="prob"):
     """
     Calculates classification metrics for binary classification tasks.
 
@@ -275,7 +275,7 @@ def calculate_classification_metrics(data, prob_col="prob_col"):
     def calculate_metrics_for_df(df, prob_col):
         df = df.copy()
         # Ensure the 'prob' column values are between 0 and 1
-        probs = df[prob_col].clip(0, 1)
+        probs = df[[prob_col]].clip(0, 1)
 
         # Binarize the probabilities to get binary predictions
         binarizer = Binarizer(threshold=0.5)
