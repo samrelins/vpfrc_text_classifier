@@ -144,12 +144,14 @@ def train_classifier(df, test_size=0.1, model_name="distilbert-base-uncased",
         )
 
     trainer = _train_model(tokenized_datasets, model, tokenizer, training_args)
+    
+    device = 0 if torch.cuda.is_available() else -1
 
     classifier = pipeline("sentiment-analysis",
                           model=model,
                           tokenizer=tokenizer,
                           top_k=1,
-                          device=0)
+                          device=device)
     return classifier
 
 
